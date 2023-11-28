@@ -4,9 +4,10 @@ params.extension = "vcf"
 params.annovarDBlist  = null
 params.annovarDBpath  = "/data/databases/annovar/hg38db/"
 params.annovarBinPath = "~/bin/annovar/"
+params.ref = "genome.fasta"
 params.output = "gama_annot"
 params.cpu = 8
-params.mem = 64
+params.mem = 128
 params.context = false
 params.caller = "none"
 params.pass = "'PASS'"
@@ -28,7 +29,7 @@ if (params.help) {
     log.info ''
     log.info 'Optional arguments:'
     log.info ''
-    log.info '    --extention        STRING            input files extension'
+    log.info '    --extension        STRING            input files extension'
     log.info '    --annovarDBpath    PATH              Path to annovarDB.'
     log.info '    --annovarBinPath   PATH              Path to table_annovar.pl.'
     log.info '    --output           FOLDER            Output Folder name.'

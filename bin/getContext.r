@@ -11,12 +11,13 @@
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(GetoptLong))
 suppressPackageStartupMessages(library(Biostrings))
+library(parallel)
 
 userAnnot=""
 annovarDBpath="/data/databases/annovar/mm10db"
 
 GetoptLong(matrix(c("annovarDBpath|a=s",  "path to annovarDB",
-                    "userAnnot|u=s",      "additional user annotations"
+                    "userAnnot|u=s",      "additional user annotations" 
 ), ncol=2, byrow=TRUE))
 
 avinput<-list.files(pattern="tsv$")
@@ -59,6 +60,8 @@ getContextAnnotation<-function(avtmp){
   ref<-readDNAStringSet(reffile)
   #avtmp$context=apply( avtmp, 1, function(x) getContext(ref,x["CHROM"],x["POS"],10) )
   #avtmp$trinucleotide_context=apply( avtmp, 1, function(x) getContext(ref,x["CHROM"],x["POS"],1) )
+  avtmp[ , CHROM:=gsub("chrchr","chr",gsub("^","chr",CHROM)) ] # add chr to chromosome names when needed.
+  avtmp<- avtmp[ avtmp$CHROM %in% unique(names(ref)), ] # remove chromosomes not in ref
   avtmp[, context:=getContext(ref,CHROM,POS,10)]
   avtmp$context<-as.character(avtmp$context)
   avtmp[, trinucleotide_context:=substr(context, 10, 12)]
@@ -90,6 +93,13 @@ addUserAnnot<-function(avtmp,dt_reg){
 ##################
 #main
 
+#fix CHROM
+if( !grepl("chr",avinput$CHROM[1]) ){
+   avinput$CHROM<-paste0("chr",avinput$CHROM)
+}
+
+print(avinput$CHROM[1:5])
+
 print("Strand annotation")
 avoutput<-getStrand(avinput)
 print(nrow(avoutput))
@@ -119,7 +129,7 @@ avoutput$num=avoutput$Chr
 avoutput[ num=="chrX", num :="23"]
 avoutput[ num=="chrY", num :="24"]
 avoutput[, num:=as.integer(gsub("chr","",num))]
-avoutput<-avoutput[ order(cnum,Start,End,Ref,Alt), ]
+avoutput<-avoutput[ order(num,Start,End,Ref,Alt), ]
 avoutput[, num:=NULL]
 
 #reorder columns

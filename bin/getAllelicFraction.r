@@ -2,15 +2,17 @@
 library(data.table)
 caller="strelka2"
 suppressPackageStartupMessages(library(GetoptLong))
-GetoptLong(matrix(c( "caller|c=s", "caller=c(strelka2,mutect2,haplotypecaller,muse)"	), ncol=2, byrow=TRUE))
+GetoptLong(matrix(c( "caller|c=s", "caller=c(strelka2,mutect2,haplotypecaller,muse,pindel,octopus)"	), ncol=2, byrow=TRUE))
 
 somatic<-list.files(pattern="somatic.snvs")
 germline<-list.files(pattern="germline|variants|genome")
 mutect2<-list.files(pattern="*.tsv$")
 haplotypecaller<-list.files(pattern="*.tsv$")
 muse<-list.files(pattern="*.tsv$")
+pindel<-list.files(pattern="*.tsv$")
+octopus<-list.files(pattern="*1.tsv$")
 
-if (! caller %in% c("strelka2","mutect2","haplotypecaller","muse") ){ stop( paste0("sorry, ", caller,  " is not suported, you cannot use -c option") )  }
+if (! caller %in% c("strelka2","mutect2","haplotypecaller","muse","pindel","octopus") ){ stop( paste0("sorry, ", caller,  " is not suported, you cannot use -c option") )  }
 
 #strelka germline
 if (caller=="strelka2"){
@@ -21,7 +23,7 @@ for (file in germline){
 	print(file)
 
 	vcf<-fread(file)
-    vcf<-vcf[vcf$FILTER=="PASS" & ALT!="."]
+  vcf<-vcf[vcf$FILTER=="PASS" & ALT!="."]
 	#vcf<-vcf[vcf$FILTER=="PASS"]
 
 	T<-colnames(vcf)[ncol(vcf)] # name of sample (must be the last column)
@@ -124,6 +126,9 @@ for ( file in mutect2 ){
     print(file)
 
     vcf<-fread(file)
+    cf=which(colnames(vcf)=="FORMAT")
+    tn<-colnames(vcf)[ (cf+1):(cf+2) ] #true names
+    colnames(vcf)[ (cf+1):(cf+2) ]<-c("TUMOR","NORMAL")
 
     Cov_N<-vcf[ , tstrsplit( NORMAL, ":", keep = 2 ) ][ , tstrsplit( V1, "," ) ]
     Cov_alt_N<-Cov_N[ , as.numeric(V2) ]
@@ -137,11 +142,13 @@ for ( file in mutect2 ){
 
     VAF_T<- vcf[ , c("VAF_T") := tstrsplit( TUMOR, ":", keep = 3 ) ][,VAF_T]
 
-    foo<-cbind(vcf, Cov_N, Cov_T, VAF_N, VAF_T, Cov_alt_N, Cov_alt_T)
-        
-	filename<-gsub(".1.tsv",".tsv",file)
-	filename<-gsub(".tsv",".2.tsv",filename)
-	write.table(foo, file=filename, sep="\t", row.names=F, quote=F)
+    foo<-cbind(vcf, Cov_N, Cov_T, Cov_alt_N, Cov_alt_T)
+    colnames(foo)[ (cf+1):(cf+2) ]<-tn 
+
+    filename<-gsub(".1.tsv",".tsv",file)
+    filename<-gsub(".tsv",".2.tsv",filename)
+    write.table(foo, file=filename, sep="\t", row.names=F, quote=F)
+
 }
 
 }
@@ -204,5 +211,65 @@ for ( file in muse ){
 }
 
 }
+
+#Pindel
+if(caller=="pindel"){
+
+print("pindel")
+for ( file in pindel ){
+
+  vcf<-fread(file)
+  vcf<-vcf[ !is.na(INFO), ]
+  Cov_N<-vcf[ , tstrsplit( NORMAL, ":", keep = 12 ) ]
+  Cov_N<-Cov_N[ , as.numeric(V1) ]
+  Cov_alt_N<- vcf[ , tstrsplit( NORMAL, ":", keep = 13 ) ]
+  Cov_alt_N<-Cov_alt_N[ , as.numeric(V1) ]
+  VAF_N<- Cov_alt_N / Cov_N
+  
+  Cov_T<-vcf[ , tstrsplit( TUMOUR, ":", keep = 12 ) ]
+  Cov_T<-Cov_T[ , as.numeric(V1) ]
+  Cov_alt_T<- vcf[ , tstrsplit( TUMOUR, ":", keep = 13 ) ]
+  Cov_alt_T<-Cov_alt_T[ , as.numeric(V1) ]
+  VAF_T<- as.numeric(Cov_alt_T) / as.numeric(Cov_T)
+  
+  foo<-cbind(vcf, Cov_N, Cov_T, VAF_N, VAF_T, Cov_alt_N, Cov_alt_T)
+  filename<-gsub(".1.tsv",".tsv",file)
+  filename<-gsub(".tsv",".2.tsv",filename)
+  write.table(foo, file=filename, sep="\t", row.names=F, quote=F)
+
+}
+
+}
+
+#Octopus
+if(caller=="octopus"){
+for( file in octopus){
+        
+  vcf<-fread(file)
+  cf=which(colnames(vcf)=="FORMAT")
+  tn<-colnames(vcf)[ (cf+1):(cf+2) ] #true names
+  colnames(vcf)[ (cf+1):(cf+2) ]<-c("TUMOR","NORMAL")
+
+  Cov_N<-vcf[ , tstrsplit( NORMAL, ":", keep = 9 ) ]
+  Cov_alt_N<-vcf[ , tstrsplit( NORMAL, ":", keep = 7 ) ][ ,  tstrsplit( V1, ",", keep = 2 ) ]
+  VAF_N<-vcf[ , tstrsplit( NORMAL, ":", keep = 8 ) ][ ,  tstrsplit( V1, ",", keep = 2 ) ]
+
+
+  Cov_T<-vcf[ , tstrsplit( TUMOR, ":", keep = 9 ) ]
+  Cov_alt_T<-vcf[ , tstrsplit( TUMOR, ":", keep = 7 ) ][ ,  tstrsplit( V1, ",", keep = 2 ) ]  
+  VAF_T<-vcf[ , tstrsplit( TUMOR, ":", keep = 8 ) ][ ,  tstrsplit( V1, ",", keep = 2 ) ]
+
+  foo<-cbind(vcf, Cov_N, Cov_T, VAF_N, VAF_T, Cov_alt_N, Cov_alt_T)
+  colnames(foo)[ (cf+1):(cf+8) ]<-c(tn,"Cov_N", "Cov_T", "VAF_N", "VAF_T", "Cov_alt_N", "Cov_alt_T")
+
+  filename<-gsub(".1.tsv",".tsv",file)
+  filename<-gsub(".tsv",".2.tsv",filename)
+  write.table(foo, file=filename, sep="\t", row.names=F, quote=F) 
+
+}
+
+}
+
+
 
 

@@ -17,7 +17,7 @@ out=""
 userAnnot=""
 annovarDBpath="/data/databases/annovar/mm10db"
 annovarBinPath="~/bin/annovar/"
-threads=1
+threads="1"
 PASS="PASS"
 
 GetoptLong(matrix(c("input|i=s",          "vcf input file",	
@@ -84,10 +84,11 @@ print(paste0("Output file name : ", out))
 ###################
 #filter PASS
 PASS<-unlist(strsplit(PASS,","))
-print(paste("PASS=",PASS))
+print(paste0("PASS=",PASS))
 #passvcf=gsub(".tsv","_pass.vcf.gz",out)
 #write.vcf( vcf[ vcf@fix[,'FILTER'] %in% PASS ], file=passvcf )
-vcf<-vcf[ FILTER %in% PASS]
+#vcf<-vcf[ sum(strsplit(FILTER,";")[[1]] %in% PASS), ]
+if (! "all" %in% PASS){ vcf<-vcf[ FILTER %in% PASS , ] }
 if(nrow(vcf)==0){ stop("ERROR : None of the variants pass filters") }
 fwrite( vcf , sep="\t", file="tmp", append=TRUE)
 
@@ -100,6 +101,7 @@ annovarBin<-paste0( gsub("table_annovar.pl","",annovarBinPath), "/table_annovar.
 params=paste(" --buildver", reference , "--thread", threads, "--vcfinput --onetranscript --remove --otherinfo --protocol", protocols, "-operation", operations, "tmp.gz", annovarDBpath , sep=" ")
 print("Run table_annovar.pl")
 print(paste0(annovarBin,params))
+save.image("DEBUG")
 #err<-system(command, ignore.stderr=T, stdout="annovar.stdout", stderr="annovar.stderr")
 err<-system2(command=annovarBin,args=params, stdout="annovar.stdout", stderr="annovar.stderr")
 #if(err>0){stop(err)}
@@ -112,7 +114,7 @@ if(file.info(avinput)$size<100){ stop("ERROR : Annovar output empty") }
 mergeAnnovarFiles<-function(dir="./"){
   
   avinput<-list.files(path = dir, pattern="avinput")
-  avinput<-fread(avinput[1])[,-c(6,7,8)]
+  avinput<-fread(avinput[1],sep="\t")[,-c(6,7,8)]
   print(nrow(avinput))
   colnames(avinput)<-c(fixNames,colNames)
   nbfields<-ncol(avinput)
